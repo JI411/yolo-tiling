@@ -17,13 +17,13 @@ def tiler(imnames, newpath, falsepath, slice_size, ext):
         width = imr.shape[1]
         labname = imname.replace(ext, '.txt')
         labels = pd.read_csv(labname, sep=' ', names=['class', 'x1', 'y1', 'w', 'h'])
-        
+
         # we need to rescale coordinates from 0-1 to real image height and width
         labels[['x1', 'w']] = labels[['x1', 'w']] * width
         labels[['y1', 'h']] = labels[['y1', 'h']] * height
-        
+
         boxes = []
-        
+
         # convert bounding boxes to shapely polygons. We need to invert Y and find polygon vertices from center points
         for row in labels.iterrows():
             x1 = row[1]['x1'] - row[1]['w']/2
@@ -32,7 +32,7 @@ def tiler(imnames, newpath, falsepath, slice_size, ext):
             y2 = (height - row[1]['y1']) + row[1]['h']/2
 
             boxes.append((int(row[1]['class']), Polygon([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])))
-        
+
         counter = 0
         print('Image:', imname)
         # create tiles and find intersection with bounding boxes for each tile
@@ -50,7 +50,7 @@ def tiler(imnames, newpath, falsepath, slice_size, ext):
                 for box in boxes:
                     if pol.intersects(box[1]):
                         inter = pol.intersection(box[1])        
-                        
+
                         if not imsaved:
                             sliced = imr[i*slice_size:(i+1)*slice_size, j*slice_size:(j+1)*slice_size]
                             sliced_im = Image.fromarray(sliced)
@@ -60,33 +60,33 @@ def tiler(imnames, newpath, falsepath, slice_size, ext):
                             print(slice_path)
                             sliced_im.save(slice_path)
                             imsaved = True                    
-                        
+
                         # get smallest rectangular polygon (with sides parallel to the coordinate axes) that contains the intersection
                         new_box = inter.envelope 
-                        
+
                         # get central point for the new bounding box 
                         centre = new_box.centroid
-                        
+
                         # get coordinates of polygon vertices
                         x, y = new_box.exterior.coords.xy
-                        
+
                         # get bounding box width and height normalized to slice size
                         new_width = (max(x) - min(x)) / slice_size
                         new_height = (max(y) - min(y)) / slice_size
-                        
+
                         # we have to normalize central x and invert y for yolo format
                         new_x = (centre.coords.xy[0][0] - x1) / slice_size
                         new_y = (y1 - centre.coords.xy[1][0]) / slice_size
-                        
+
                         counter += 1
 
                         slice_labels.append([box[0], new_x, new_y, new_width, new_height])
-                
-                if len(slice_labels) > 0:
+
+                if slice_labels:
                     slice_df = pd.DataFrame(slice_labels, columns=['class', 'x1', 'y1', 'w', 'h'])
                     print(slice_df)
                     slice_df.to_csv(slice_labels_path, sep=' ', index=False, header=False, float_format='%.6f')
-                
+
                 if not imsaved and falsepath:
                     sliced = imr[i*slice_size:(i+1)*slice_size, j*slice_size:(j+1)*slice_size]
                     sliced_im = Image.fromarray(sliced)
